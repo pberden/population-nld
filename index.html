@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+.provincies {
+  fill: none;
+}
+
+.prov-border {
+  fill: none;
+  stroke: #fff;
+}
+
+.land-border {
+  fill: none;
+}
+
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="../d3/lib/colorbrewer/colorbrewer.js"></script>
+<script>
+var width = 1160,
+    height = 800;
+
+var projection = d3.geo.mercator()
+    .scale(8000)
+    .translate([width / 2, height / 2])
+    .center([5.4, 52.2]);
+
+var path = d3.geo.path()
+    .projection(projection);
+               
+//Define quantize scale to sort data values into buckets of color
+var color = d3.scale.quantize()
+          .range(colorbrewer.GnBu[5]);
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+d3.json("data/gem.json", function(error, prov) {
+  var provincies = topojson.feature(prov, prov.objects.gemgeo);
+
+
+console.log(provincies)
+
+  //Set input domain for color scale
+  color.domain([
+    d3.min(provincies.features, function(d) { return d.properties.AANT_INW/d.properties.OPP_LAND; }), 
+    d3.max(provincies.features, function(d) { return d.properties.AANT_INW/d.properties.OPP_LAND; })
+  ]);
+
+  svg.selectAll(".prov")
+      .data(provincies.features)
+    .enter().append("path")
+      .attr("class", function(d) { return "prov " + d.id; })
+      .attr("d", path)
+      .style("fill", function(d) {return (color(d.properties.AANT_INW/d.properties.OPP_LAND));})
+      .append("title")
+      .text(function(d) { return d.properties.GM_NAAM + ": " + d.properties.AANT_INW + " inwoners"; });
+
+  svg.append("path")
+      .datum(topojson.mesh(prov, prov.objects.gemgeo, function(a, b) { return a !== b; }))
+      .attr("class", "prov-border")
+      .attr("d", path);
+
+  svg.append("path")
+      .datum(topojson.mesh(prov, prov.objects.gemgeo, function(a, b) { return a === b; }))
+      .attr("class", "land-border")
+      .attr("d", path);
+});
+
+</script>

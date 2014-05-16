@@ -1,27 +1,50 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
-.provincies {
+
+path {
   fill: none;
+  stroke: #FFF;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
-.prov-border {
-  fill: none;
+.land {
+  fill: #ddd;
+}
+
+.bubble {
+  fill: brown;
+  fill-opacity: .5;
   stroke: #fff;
+  stroke-width: .5px;
 }
 
-.land-border {
+.bubble :hover {
+  stroke: #000;
+}
+
+.legend circle {
   fill: none;
+  stroke: #ccc;
+}
+
+.legend text {
+  fill: #777;
+  font: 10px sans-serif;
+  text-anchor: middle;
 }
 
 </style>
 <body>
-<script src="http://d3js.org/d3.v3.min.js"></script>
-<script src="http://d3js.org/topojson.v1.min.js"></script>
-<script src="../d3/lib/colorbrewer/colorbrewer.js"></script>
+<script src="../d3/d3.js"></script>
+<script src="../topojson/topojson.js"></script>
 <script>
-var width = 1160,
-    height = 800;
+
+var width = 600,
+    height = 700;
+
+var formatNumber = d3.format(",.0f");
 
 var projection = d3.geo.mercator()
     .scale(8000)
@@ -29,46 +52,65 @@ var projection = d3.geo.mercator()
     .center([5.4, 52.2]);
 
 var path = d3.geo.path()
-    .projection(projection);
-               
-//Define quantize scale to sort data values into buckets of color
-var color = d3.scale.quantize()
-          .range(colorbrewer.GnBu[5]);
+    .projection(projection);    
+
+var radius = d3.scale.sqrt()
+    .domain([0, 1e5])
+    .range([0, 10]);
 
 var svg = d3.select("body").append("svg")
     .attr("width", width)
     .attr("height", height);
 
-d3.json("data/gem.json", function(error, prov) {
-  var provincies = topojson.feature(prov, prov.objects.gemgeo);
+var legend = svg.append("g")
+    .attr("class", "legend")
+    .attr("transform", "translate(" + (width - 50) + "," + (height - 20) + ")")
+  .selectAll("g")
+    .data([1e5, 5e5, 1e6])
+  .enter().append("g");
 
+legend.append("circle")
+    .attr("cy", function(d) { return -radius(d); })
+    .attr("r", radius);
 
-console.log(provincies)
+legend.append("text")
+    .attr("y", function(d) { return -2 * radius(d); })
+    .attr("dy", "1.3em")
+    .text(d3.format(".1s"));
 
-  //Set input domain for color scale
-  color.domain([
-    d3.min(provincies.features, function(d) { return d.properties.AANT_INW/d.properties.OPP_LAND; }), 
-    d3.max(provincies.features, function(d) { return d.properties.AANT_INW/d.properties.OPP_LAND; })
-  ]);
+d3.json("build/prov.json", function(error, prov) {
+  if (error) return console.error(error);
 
-  svg.selectAll(".prov")
-      .data(provincies.features)
-    .enter().append("path")
-      .attr("class", function(d) { return "prov " + d.id; })
-      .attr("d", path)
-      .style("fill", function(d) {return (color(d.properties.AANT_INW/d.properties.OPP_LAND));})
+  console.log(prov);
+
+  svg.append("path")
+      .datum(topojson.feature(prov, prov.objects.provgeo))
+      .attr("class", "land")
+      .attr("d", path);
+/*
+  svg.append("path")
+      .datum(topojson.mesh(prov, prov.objects.provgeo, function(a, b) { return a !== b; }))
+      .attr("class", "border border--state")
+      .attr("d", path);
+      */
+});
+
+d3.json("build/gem.json", function(error, gem) {
+  if (error) return console.error(error);
+
+  svg.append("g")
+      .attr("class", "bubble")
+    .selectAll("circle")
+      .data(topojson.feature(gem, gem.objects.gemgeo).features.sort(function(a, b) { return b.properties.AANT_INW - a.properties.AANT_INW; }))
+    .enter().append("circle")
+      .attr("transform", function(d) { return "translate(" + path.centroid(d) + ")"; })
+      .attr("r", function(d) { return radius(d.properties.AANT_INW); })
       .append("title")
-      .text(function(d) { return d.properties.GM_NAAM + ": " + d.properties.AANT_INW + " inwoners"; });
-
-  svg.append("path")
-      .datum(topojson.mesh(prov, prov.objects.gemgeo, function(a, b) { return a !== b; }))
-      .attr("class", "prov-border")
-      .attr("d", path);
-
-  svg.append("path")
-      .datum(topojson.mesh(prov, prov.objects.gemgeo, function(a, b) { return a === b; }))
-      .attr("class", "land-border")
-      .attr("d", path);
+      .text(function(d) {
+        return d.properties.GM_NAAM 
+            + "\nPopulation " + formatNumber(d.properties.AANT_INW);
+      });
 });
 
 </script>
+
